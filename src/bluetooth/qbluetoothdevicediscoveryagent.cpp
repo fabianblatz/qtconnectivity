@@ -431,6 +431,12 @@ QString QBluetoothDeviceDiscoveryAgent::errorString() const
     return d->errorString;
 }
 
+void QBluetoothDeviceDiscoveryAgent::setDiscoveryFilter(const QList<QBluetoothUuid> &uuids)
+{
+    Q_D(QBluetoothDeviceDiscoveryAgent);
+    d->uuidDiscoveryFilter = uuids;
+}
+
 #include "moc_qbluetoothdevicediscoveryagent.cpp"
 
 QT_END_NAMESPACE

@@ -45,7 +45,7 @@
 #include <QtCore/QObject>
 #include <QtBluetooth/QBluetoothDeviceInfo>
 #include <QtBluetooth/QBluetoothAddress>
-
+#include <QtBluetooth/QBluetoothUuid>
 QT_BEGIN_NAMESPACE
 
 class QBluetoothDeviceDiscoveryAgentPrivate;
@@ -95,6 +95,7 @@ public:
     void setInquiryType(QBluetoothDeviceDiscoveryAgent::InquiryType type);
 
     bool isActive() const;
+    void setDiscoveryFilter(const QList<QBluetoothUuid> &uuids);
 
     Error error() const;
     QString errorString() const;

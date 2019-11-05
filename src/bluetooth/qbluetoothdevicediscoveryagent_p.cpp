@@ -87,6 +87,10 @@ void QBluetoothDeviceDiscoveryAgentPrivate::stop()
 {
 }
 
+void QBluetoothDeviceDiscoveryAgentPrivate::setDiscoveryFilter(const QList<QBluetoothUuid> &uuids)
+{
+}
+
 
 
 QT_END_NAMESPACE

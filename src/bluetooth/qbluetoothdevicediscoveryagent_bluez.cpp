@@ -266,11 +266,22 @@ void QBluetoothDeviceDiscoveryAgentPrivate::startBluez5(QBluetoothDeviceDiscover
     else
         map.insert(QStringLiteral("Transport"), QStringLiteral("bredr"));
 
+    if (uuidDiscoveryFilter.length() > 0){
+        qCDebug(QT_BT_BLUEZ) << "APPLYING UUID FILTER FOR REQUEST";
+        QStringList uuids;
+        for(QList<QBluetoothUuid>::Iterator listIter = uuidDiscoveryFilter.begin(); listIter != uuidDiscoveryFilter.end(); listIter++){
+            QString ble_uuid = (*listIter).toString(QUuid::WithoutBraces);
+            uuids << ble_uuid;
+        }
+        map.insert(QStringLiteral("UUIDs"), uuids);
+    }    
+
     // older BlueZ 5.x versions don't have this function
     // filterReply returns UnknownMethod which we ignore
     QDBusPendingReply<> filterReply = adapterBluez5->SetDiscoveryFilter(map);
     filterReply.waitForFinished();
     if (filterReply.isError()) {
+        qCDebug(QT_BT_BLUEZ) << "RECEIVED DBUS ERROR REPLY";
         if (filterReply.error().type() == QDBusError::Other
                     && filterReply.error().name() == QStringLiteral("org.bluez.Error.Failed")) {
             qCDebug(QT_BT_BLUEZ) << "Discovery method" << methods << "not supported";

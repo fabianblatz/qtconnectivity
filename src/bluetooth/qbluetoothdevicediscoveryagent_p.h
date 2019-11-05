@@ -59,7 +59,7 @@
 #endif
 
 #include <QtCore/QVariantMap>
-
+#include <QList>
 #include <QtBluetooth/QBluetoothAddress>
 #include <QtBluetooth/QBluetoothLocalDevice>
 
@@ -107,7 +107,7 @@ public:
     void start(QBluetoothDeviceDiscoveryAgent::DiscoveryMethods methods);
     void stop();
     bool isActive() const;
-
+    void setDiscoveryFilter(const QList<QBluetoothUuid> &uuids);
 #if QT_CONFIG(bluez)
     void _q_deviceFound(const QString &address, const QVariantMap &dict);
     void _q_propertyChanged(const QString &name, const QDBusVariant &value);
@@ -156,7 +156,7 @@ private:
     OrgBluezAdapter1Interface *adapterBluez5 = nullptr;
     QTimer *discoveryTimer = nullptr;
     QList<OrgFreedesktopDBusPropertiesInterface *> propertyMonitors;
-
+     
     void deviceFoundBluez5(const QString& devicePath);
     void startBluez5(QBluetoothDeviceDiscoveryAgent::DiscoveryMethods methods);
 
@@ -175,6 +175,7 @@ private:
     QTimer *leScanTimer;
 #endif
 
+    QList<QBluetoothUuid> uuidDiscoveryFilter;
     int lowEnergySearchTimeout;
     QBluetoothDeviceDiscoveryAgent::DiscoveryMethods requestedMethods;
     QBluetoothDeviceDiscoveryAgent *q_ptr;
