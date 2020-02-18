@@ -289,6 +289,23 @@ static inline OrgBluezDeviceInterface *getDevice(const QBluetoothAddress &addres
                                        QDBusConnection::systemBus());
 }
 
+void QBluetoothLocalDevice::requestConnection(const QBluetoothAddress &address, Connection connection)
+{
+    if (!isValid() || address.isNull()) {
+        QMetaObject::invokeMethod(this, "error", Qt::QueuedConnection,
+                                  Q_ARG(QBluetoothLocalDevice::Error,
+                                        QBluetoothLocalDevice::ConnectionError));
+        return;
+    }
+
+    if (d_ptr->adapterBluez5) {
+        d_ptr->address = address;
+        d_ptr->connectionState = connection;
+        d_ptr->requestConnectionBluez5(address, connection);
+        return;
+    }
+}
+
 void QBluetoothLocalDevice::requestPairing(const QBluetoothAddress &address, Pairing pairing)
 {
     if (!isValid() || address.isNull()) {
@@ -431,6 +448,77 @@ void QBluetoothLocalDevice::requestPairing(const QBluetoothAddress &address, Pai
     }
 }
 
+void QBluetoothLocalDevicePrivate::requestConnectionBluez5(const QBluetoothAddress &targetAddress, QBluetoothLocalDevice::Connection connection)
+{
+    if (!managerBluez5)
+        return;
+
+    //are we already discovering something? -> abort those attempts
+    if (connectionDiscoveryTimer && connectionDiscoveryTimer->isActive()) {
+        connectionDiscoveryTimer->stop();
+        QtBluezDiscoveryManager::instance()->unregisterDiscoveryInterest(adapterBluez5->path());
+    }
+    if (connectionTarget) {
+        delete connectionTarget;
+        connectionTarget = nullptr;
+    }
+    // pairing implies that the device was found
+    // if we cannot find it we may have to turn on Discovery mode for a limited amount of time
+
+    // check device doesn't already exist
+    QDBusPendingReply<ManagedObjectList> reply = managerBluez5->GetManagedObjects();
+    reply.waitForFinished();
+    if (reply.isError()) {
+        emit q_ptr->error(QBluetoothLocalDevice::ConnectionError);
+        return;
+    }
+
+    ManagedObjectList managedObjectList = reply.value();
+    for (ManagedObjectList::const_iterator it = managedObjectList.constBegin(); it != managedObjectList.constEnd(); ++it) {
+        const QDBusObjectPath &path = it.key();
+        const InterfaceList &ifaceList = it.value();
+
+        for (InterfaceList::const_iterator jt = ifaceList.constBegin(); jt != ifaceList.constEnd(); ++jt) {
+            const QString &iface = jt.key();
+
+            if (iface == QStringLiteral("org.bluez.Device1")) {
+
+                OrgBluezDevice1Interface device(QStringLiteral("org.bluez"),
+                                                path.path(),
+                                                QDBusConnection::systemBus());
+                if (targetAddress == QBluetoothAddress(device.address())) {
+                    qCDebug(QT_BT_BLUEZ) << "Initiating direct connection to" << targetAddress.toString();
+                    //device exist -> directly work with it
+                    processConnectBluez5(path.path(), connection);
+                    return;
+                }
+            }
+        }
+    }
+    qCDebug(QT_BT_BLUEZ) << "Target connection device not found " << targetAddress.toString();
+    //no device was found -> prevent discovery
+    if(connection == QBluetoothLocalDevice::Disconnected)
+    {
+        qCDebug(QT_BT_BLUEZ) << "Device was not connected, so disconnect was succesfull";
+        emit q_ptr->deviceDisconnected(targetAddress);
+        return;
+    }
+    //no device matching, connection request -> turn on discovery
+    QtBluezDiscoveryManager::instance()->registerDiscoveryInterest(adapterBluez5->path());
+
+    address = targetAddress;
+    if (!connectionDiscoveryTimer) {
+        connectionDiscoveryTimer = new QTimer(this);
+        connectionDiscoveryTimer->setSingleShot(true);
+        connectionDiscoveryTimer->setInterval(20000); //20s
+        connect(connectionDiscoveryTimer, &QTimer::timeout,
+                this, &QBluetoothLocalDevicePrivate::connectionDiscoveryTimedOut);
+    }
+
+    qCDebug(QT_BT_BLUEZ) << "Initiating discovery for connect on" << targetAddress.toString();
+    connectionDiscoveryTimer->start();
+}
+
 void QBluetoothLocalDevicePrivate::requestPairingBluez5(const QBluetoothAddress &targetAddress,
                                                         QBluetoothLocalDevice::Pairing targetPairing)
 {
@@ -498,6 +586,50 @@ void QBluetoothLocalDevicePrivate::requestPairingBluez5(const QBluetoothAddress 
 
     qCDebug(QT_BT_BLUEZ) << "Initiating discovery for pairing on" << targetAddress.toString();
     pairingDiscoveryTimer->start();
+}
+
+void QBluetoothLocalDevicePrivate::processConnectBluez5(const QString &objectPath, QBluetoothLocalDevice::Connection connection)
+{
+    qCDebug(QT_BT_BLUEZ) << "Processing connection request for: " << objectPath;
+    if (connectionTarget)
+        delete connectionTarget;
+
+    //stop possibly running discovery
+    if (connectionDiscoveryTimer && connectionDiscoveryTimer->isActive()) {
+        qCDebug(QT_BT_BLUEZ) << "Stopping running connection discovery";
+        connectionDiscoveryTimer->stop();
+
+        QtBluezDiscoveryManager::instance()->unregisterDiscoveryInterest(
+                    adapterBluez5->path());
+    }
+
+    connectionTarget = new OrgBluezDevice1Interface(QStringLiteral("org.bluez"), objectPath,
+                                                 QDBusConnection::systemBus(), this);
+    const QBluetoothAddress targetAddress(connectionTarget->address());
+
+    Q_Q(QBluetoothLocalDevice);
+
+    QDBusPendingReply<> connectionReply;
+    if(connection == QBluetoothLocalDevice::Connected){
+        qCDebug(QT_BT_BLUEZ) << "Sending DBus connect command";
+        connectionReply = connectionTarget->Connect();
+    }else if(connection == QBluetoothLocalDevice::Disconnected){
+        qCDebug(QT_BT_BLUEZ) << "Sending DBus disconnect command";
+        connectionReply = connectionTarget->Disconnect();
+    }
+
+    auto watcher = new QDBusPendingCallWatcher(connectionReply, this);
+    connect(watcher, &QDBusPendingCallWatcher::finished,
+            this, [this, q, targetAddress, connection](QDBusPendingCallWatcher* watcher){
+        QDBusPendingReply<> reply = *watcher;
+        if (reply.isError()){
+            qCDebug(QT_BT_BLUEZ) << "DBus reply was error on connect";
+            emit q->error(QBluetoothLocalDevice::ConnectionError);
+        }
+        delete connectionTarget;
+        connectionTarget = nullptr;
+        watcher->deleteLater();
+    });
 }
 
 /*!
@@ -586,6 +718,18 @@ void QBluetoothLocalDevicePrivate::pairingDiscoveryTimedOut()
 
     emit q_ptr->error(QBluetoothLocalDevice::PairingError);
 }
+
+
+void QBluetoothLocalDevicePrivate::connectionDiscoveryTimedOut()
+{
+    qCWarning(QT_BT_BLUEZ) << "Discovery for connnection purposes failed. Cannot find connectable device.";
+
+    QtBluezDiscoveryManager::instance()->unregisterDiscoveryInterest(
+                adapterBluez5->path());
+
+    emit q_ptr->error(QBluetoothLocalDevice::ConnectionError);
+}
+
 
 QBluetoothLocalDevice::Pairing QBluetoothLocalDevice::pairingStatus(
     const QBluetoothAddress &address) const
@@ -934,6 +1078,15 @@ void QBluetoothLocalDevicePrivate::InterfacesAdded(const QDBusObjectPath &object
                                         object_path.path(), QDBusConnection::systemBus());
         if (!address.isNull() && address == QBluetoothAddress(device.address()))
             processPairingBluez5(object_path.path(), pairing);
+    }
+    if (connectionDiscoveryTimer && connectionDiscoveryTimer->isActive()
+        && interfaces_and_properties.contains(QStringLiteral("org.bluez.Device1"))) {
+        //device discovery for pairing found new remote device
+        OrgBluezDevice1Interface device(QStringLiteral("org.bluez"),
+                                        object_path.path(), QDBusConnection::systemBus());
+        if (!address.isNull() && address == QBluetoothAddress(device.address()))
+            qCDebug(QT_BT_BLUEZ) << "Discovered requested device for connect: " << address.toString();
+            processConnectBluez5(object_path.path(), connectionState);
     }
 }
 

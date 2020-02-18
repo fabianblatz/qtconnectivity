@@ -64,6 +64,12 @@ public:
     };
     Q_ENUM(Pairing)
 
+    enum Connection {
+        Connected,
+        Disconnected
+    };
+    Q_ENUM(Connection)
+
     enum HostMode {
         HostPoweredOff,
         HostConnectable,
@@ -75,6 +81,7 @@ public:
     enum Error {
         NoError,
         PairingError,
+        ConnectionError,
         UnknownError = 100
     };
     Q_ENUM(Error)
@@ -85,6 +92,7 @@ public:
 
     bool isValid() const;
 
+    void requestConnection(const QBluetoothAddress &address, Connection connection);
     void requestPairing(const QBluetoothAddress &address, Pairing pairing);
     Pairing pairingStatus(const QBluetoothAddress &address) const;
 

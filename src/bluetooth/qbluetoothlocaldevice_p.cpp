@@ -103,6 +103,15 @@ QList<QBluetoothHostInfo> QBluetoothLocalDevice::allDevices()
     return localDevices;
 }
 
+void QBluetoothLocalDevice::requestConnection(const QBluetoothAddress &address, Connection connection)
+{
+    Q_UNUSED(address);
+    Q_UNUSED(connection);
+    QMetaObject::invokeMethod(this, "error", Qt::QueuedConnection,
+                              Q_ARG(QBluetoothLocalDevice::Error,
+                                    QBluetoothLocalDevice::ConnectionError));
+}
+
 void QBluetoothLocalDevice::requestPairing(const QBluetoothAddress &address, Pairing pairing)
 {
     Q_UNUSED(address);
@@ -111,6 +120,7 @@ void QBluetoothLocalDevice::requestPairing(const QBluetoothAddress &address, Pai
                               Q_ARG(QBluetoothLocalDevice::Error,
                                     QBluetoothLocalDevice::PairingError));
 }
+
 
 QBluetoothLocalDevice::Pairing QBluetoothLocalDevice::pairingStatus(
     const QBluetoothAddress &address) const

@@ -155,8 +155,12 @@ public:
     QBluetoothAddress localAddress;
     QBluetoothAddress address;
     QBluetoothLocalDevice::Pairing pairing;
+    QBluetoothLocalDevice::Connection connectionState;
+    OrgBluezDevice1Interface *connectionTarget = nullptr;
     OrgBluezDevice1Interface *pairingTarget = nullptr;
     QTimer *pairingDiscoveryTimer = nullptr;
+    QTimer *connectionDiscoveryTimer = nullptr;
+
     QBluetoothLocalDevice::HostMode currentMode;
     int pendingHostModeChange;
 
@@ -182,7 +186,7 @@ public slots:
 
     void requestPairingBluez5(const QBluetoothAddress &address,
                               QBluetoothLocalDevice::Pairing targetPairing);
-
+    void requestConnectionBluez5(const QBluetoothAddress &address, QBluetoothLocalDevice::Connection connectionTarget);
 private Q_SLOTS:
     void PropertiesChanged(const QString &interface,
                            const QVariantMap &changed_properties,
@@ -193,8 +197,9 @@ private Q_SLOTS:
                            const QStringList &interfaces);
     void processPairingBluez5(const QString &objectPath,
                               QBluetoothLocalDevice::Pairing target);
+    void processConnectBluez5(const QString &objectPath, QBluetoothLocalDevice::Connection connectionTarget);
     void pairingDiscoveryTimedOut();
-
+    void connectionDiscoveryTimedOut();
 private:
     void createCache();
     void connectDeviceChanges();
