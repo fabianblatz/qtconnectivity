@@ -106,7 +106,7 @@ public:
     QBluetoothAddress address() const;
 
     static QList<QBluetoothHostInfo> allDevices();
-
+    uint deviceClass() const;
 public Q_SLOTS:
     void pairingConfirmation(bool confirmation);
 

@@ -306,6 +306,18 @@ void QBluetoothLocalDevice::requestConnection(const QBluetoothAddress &address, 
     }
 }
 
+uint QBluetoothLocalDevice::deviceClass() const{
+    if (!isValid()) {
+        qCDebug(QT_BT_BLUEZ) << "Invalid adapter, can not retrieve class";
+        return 0;
+    }
+    if (d_ptr->adapterBluez5) {
+        return d_ptr->adapterBluez5->classProperty();
+    }
+    qCDebug(QT_BT_BLUEZ) << "Invalid pointer to adapter, can not retrieve class";
+    return 0;
+}
+
 void QBluetoothLocalDevice::requestPairing(const QBluetoothAddress &address, Pairing pairing)
 {
     if (!isValid() || address.isNull()) {

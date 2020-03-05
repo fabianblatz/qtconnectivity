@@ -150,7 +150,7 @@ public:
     OrgBluezManagerInterface *manager = nullptr;
 
     QList<QBluetoothAddress> connectedDevices() const;
-
+    uint deviceClass() const;
     QString agent_path;
     QBluetoothAddress localAddress;
     QBluetoothAddress address;

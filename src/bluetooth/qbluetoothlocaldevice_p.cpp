@@ -121,6 +121,9 @@ void QBluetoothLocalDevice::requestPairing(const QBluetoothAddress &address, Pai
                                     QBluetoothLocalDevice::PairingError));
 }
 
+uint QBluetoothLocalDevice::deviceClass() const{
+    return 0;
+}
 
 QBluetoothLocalDevice::Pairing QBluetoothLocalDevice::pairingStatus(
     const QBluetoothAddress &address) const
